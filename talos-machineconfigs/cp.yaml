@@ -1,0 +1,16 @@
+machine:
+  network: 
+    interfaces:
+# Since the system only has one interface we force it to hold onto a static IP for the initial node.
+    - deviceSelector:
+        physical: true
+      dhcp: false
+# The initial control plane node should have a static IP address outside of the DHCP range. On my second node I have incremented the IP by one address.
+      addresses:
+        - 10.10.1.201/16
+# If you can host a separate load balancer I recommend doing that instead of the VIP as it complicates network setup.
+      vip:
+        ip: 10.10.2.150
+# Since this cluster is small I want to leverage all available compute.
+cluster:
+  allowSchedulingOnControlPlanes: true

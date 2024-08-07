@@ -1,0 +1,8 @@
+{
+    "id": "control-plane-node1",
+    "name": "control-plane-node1",
+    "profile": "control-plane-node1",
+    "selector": {
+        "mac": "f4:39:09:02:60:a5"
+    }
+}
