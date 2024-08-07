@@ -20,8 +20,6 @@ Warnings:
 - With my 2.5Gbe Realtek NICs they don't work for installation because iPXE lacks the needed drivers. You may need to bootstrap using the onboard NIC and switchover in the machine config.  
 - If using IPV6 and IPV4 I highly recommend forcing the default IPV4 gateway in the machine config as I experienced an issue where Talos grabbed onto the IPV6 gateway address.
 
-This system extension provides AMD microcode binaries.
-
 ## Talos config setup
 
 1. First thing we need to do is generate config files for our Talos Cluster. These patches contain the bare minimum to get the cluster up and running. Additional configuration may be required based on your setup for additional information on config options look [here](https://www.talos.dev/v1.7/reference/configuration/v1alpha1/config/). The following strategic merge patches are included:
@@ -230,7 +228,7 @@ On your cluster machines set the primary boot device to be your iPXE flash drive
 
 ## Control plane bootstrapping
 
-4. The initial control plane will come online and begin in an unhealthy state as `etcd` is not bootstrapped. To fix the we need to run the following commands:
+4. The initial control plane will come online and begin in an unhealthy state as `etcd` is not bootstrapped. To fix this we need to run the following commands:
 
 ```bash
 cd talo-machineconfigs
