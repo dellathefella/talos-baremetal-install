@@ -1,0 +1,31 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "regexManagers": [
+    {
+      "fileMatch": ["^terraform/variables\\.tf$"],
+      "matchStrings": [
+        "variable \"talos_version\" \\{[\\s\\S]*?default\\s+=\\s+\"(?<currentValue>[0-9.]+)\""
+      ],
+      "depNameTemplate": "talos",
+      "datasourceTemplate": "github-releases",
+      "packageNameTemplate": "siderolabs/talos"
+    },
+    {
+      "fileMatch": ["^terraform/terraform\\.tfvars\\.example$"],
+      "matchStrings": [
+        "kubernetes_version\\s*=\\s*\"(?<currentValue>v[0-9.]+)\""
+      ],
+      "depNameTemplate": "kubernetes",
+      "datasourceTemplate": "github-releases",
+      "packageNameTemplate": "kubernetes/kubernetes"
+    },
+    {
+      "fileMatch": ["^tools/ipxe/Dockerfile$"],
+      "matchStrings": ["ARG IPXE_REF=(?<currentValue>.+)"],
+      "depNameTemplate": "ipxe",
+      "datasourceTemplate": "github-tags",
+      "packageNameTemplate": "ipxe/ipxe"
+    }
+  ]
+}

@@ -242,3 +242,136 @@ kubectl --kubeconfig kubeconfig get nodes
 # Updating machine config if you have a typo
 talosctl --talosconfig talosconfig -n <FIRST_NODE_IP> -e <FIRST_NODE_IP> apply machineconfig -f controlplane1.yaml --mode=no-reboot
 ```
+
+## Terraform automation
+
+The `terraform/` directory automates everything above: Talos secrets, per-node machine
+configs, matchbox groups/profiles/boot assets, `talosconfig` and the embedded
+`boot.ipxe` loader. It uses the official `siderolabs/talos` provider and generates
+matchbox files on disk (matchbox hot-reloads them, so no TLS/gRPC setup needed).
+
+Run it from Linux/WSL (curl is used to fetch boot assets):
+
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars   # set MACs, IPs, endpoints, schematic
+terraform init
+terraform apply                                # stage 1: generate everything, no nodes needed
+```
+
+This produces `terraform/build/` with `assets/`, `groups/`, `profiles/`,
+`talosconfig` and `boot.ipxe`.
+
+### Managed matchbox + iPXE USB (optional)
+
+Instead of the manual `docker run`, let Terraform manage the matchbox server
+lifecycle and build the iPXE boot USB. Both need a reachable Docker daemon
+(enable Docker Desktop's WSL integration for the Ubuntu distro, or set
+`DOCKER_HOST`/`docker_host`):
+
+```bash
+terraform apply -var manage_matchbox=true -var build_ipxe_usb=true
+```
+
+- `manage_matchbox=true` runs `quay.io/poseidon/matchbox` as a host-network
+  container named `<cluster>-matchbox`, mounting `terraform/build/` at
+  `/var/lib/matchbox` (restart=unless-stopped). `terraform destroy` stops it.
+- `build_ipxe_usb=true` runs `tools/ipxe/build-ipxe-usb.sh`, which compiles
+  iPXE in Docker (BIOS `ipxe.lkrn` + UEFI `ipxe.efi`), embeds the generated
+  `boot.ipxe` chain script and writes `terraform/build/ipxe.usb`. Flash it with
+  `dd`/Etcher; PXE-booted machines then chain straight to matchbox with no
+  DHCP changes.
+
+You can also build the USB by hand at any time:
+
+```bash
+./tools/ipxe/build-ipxe-usb.sh
+```
+
+Then PXE boot the first control plane node and bootstrap etcd via Terraform:
+
+```bash
+terraform apply -var bootstrap=true
+```
+
+This bootstraps etcd, runs a **health gate** (`talosctl health` on every control
+plane node + `kubectl wait --for=condition=Ready`), and only then writes
+`build/kubeconfig`. The `talosctl` client version is checked against
+`talos_version` first — a mismatch fails the plan before touching the cluster.
+
+Boot the remaining control plane nodes and workers (they join automatically).
+For later config drift on running nodes (control plane by static IP, workers
+discovered via `kubectl` from the kubeconfig):
+
+```bash
+terraform apply -var apply_to_running_nodes=true
+```
+
+Key variables (see `variables.tf`): `control_plane_nodes` (name/mac/ip/interface),
+`worker_nodes`, `factory_schematic_id` (image-factory patches), `install_disk`,
+`vip`, `gateway`, `matchbox_http_endpoint`. Adding a node is just a new entry in
+`control_plane_nodes` — Terraform regenerates its config, group and profile.
+
+### Safety rails
+
+- **Preconditions** fail fast on: empty/even control plane count, duplicate MACs
+  or IPs, invalid `cidr_prefix`, and `cluster_endpoint` host not matching the
+  VIP or first control plane node.
+- **Secret file permissions**: machine configs, `talosconfig` and `kubeconfig`
+  are written `0600` inside a `0700` directory.
+- **Boot asset checksums**: set `kernel_sha256` / `initrd_sha256` to verify the
+  downloaded kernel/initramfs before matchbox serves them.
+- **CI**: `.github/workflows/terraform.yml` runs `fmt -check`, `validate` and
+  `plan` on every PR touching `terraform/` or `tools/`.
+
+### Workspaces
+
+Use Terraform workspaces to keep multiple environments (homelab/prod) side by
+side with separate state and container names:
+
+```bash
+terraform workspace new prod
+terraform apply -var-file=prod.tfvars
+```
+
+The matchbox container is named `<cluster>-<workspace>-matchbox` outside the
+default workspace.
+
+### Operations
+
+**Upgrading Kubernetes** — uses Talos's native `upgrade-k8s` procedure
+(sequential, health-gated component upgrades):
+
+```bash
+terraform apply -var bootstrap=true -var upgrade_kubernetes_version=v1.30.4
+```
+
+Do not combine with `apply_to_running_nodes` in the same run. Also bump
+`kubernetes_version` in your tfvars so newly PXE-booted nodes join at the
+same version.
+
+**Replacing a node** — wipes STATE/EPHEMERAL, reboots, then waits for the
+node to rejoin after re-PXE boot:
+
+```bash
+./tools/replace-node.sh <node_ip> [api_node_ip]   # prompts for confirmation
+YES=true ./tools/replace-node.sh 10.10.1.201      # non-interactive
+```
+
+**Makefile** — single entrypoint for the staged flow:
+
+```bash
+make init plan apply          # stage 1
+make bootstrap               # stage 2 (health-gated)
+make drift                   # config drift correction
+make usb matchbox            # iPXE USB / managed matchbox
+make lint                    # tflint + shellcheck
+```
+
+**Linting** — `tflint` (recommended preset) and `shellcheck` run in CI and
+locally via `make lint`. Pre-commit hooks (`.pre-commit-config.yaml`) enforce
+the same on commit: `pre-commit install`.
+
+**Adopting an existing cluster** — see
+[docs/import-runbook.md](docs/import-runbook.md) for the `terraform import`
+procedure (requires the original `secrets.yaml`).

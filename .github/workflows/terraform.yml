@@ -1,0 +1,65 @@
+name: terraform
+
+on:
+  pull_request:
+    paths:
+      - "terraform/**"
+      - "tools/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -check -diff
+
+      - name: terraform init
+        run: terraform init -input=false
+
+      - name: terraform validate
+        run: terraform validate
+
+      - name: terraform plan (example vars)
+        run: terraform plan -input=false -var-file=terraform.tfvars.example -out=tfplan
+
+      - name: render plan for review
+        run: terraform show -no-color tfplan > plan.txt
+
+      - name: upload plan artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: |
+            terraform/plan.txt
+            terraform/tfplan
+          retention-days: 14
+
+      - name: tflint
+        run: |
+          curl -sL https://github.com/terraform-linters/tflint/releases/latest/download/tflint_linux_amd64.zip -o /tmp/tflint.zip
+          unzip -o /tmp/tflint.zip -d /usr/local/bin tflint
+          cd terraform && tflint --init && tflint
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: shellcheck tools
+        run: shellcheck tools/*.sh

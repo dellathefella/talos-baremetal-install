@@ -1,0 +1,46 @@
+# Copy to terraform.tfvars and adjust for your environment.
+
+cluster_name   = "test-cluster"
+talos_version  = "1.7.6"
+
+# VIP or first control plane node. Use a real load balancer for production.
+cluster_endpoint = "https://10.10.2.150:6443"
+vip              = "10.10.2.150"
+
+gateway     = "10.10.1.1"
+netmask     = "255.255.0.0"
+cidr_prefix = "/16"
+
+matchbox_http_endpoint = "http://10.10.1.47:8080"
+
+install_disk = "/dev/nvme0n1"
+
+# AMD freeze fix schematic from the README. Set to null to use upstream GitHub
+# release kernel/initramfs instead of the image factory.
+factory_schematic_id = "f19ad7b4a5d29151f3a59ef2d9c581cf89e77142e52f0abb5022e8f0b95ad0b9"
+
+allow_scheduling_on_control_planes = true
+
+control_plane_nodes = [
+  {
+    name      = "control-plane-node1"
+    mac       = "f4:39:09:02:60:a5"
+    ip        = "10.10.1.200"
+    interface = "eno1"
+  },
+  # {
+  #   name      = "control-plane-node2"
+  #   mac       = "aa:bb:cc:dd:ee:ff"
+  #   ip        = "10.10.1.201"
+  #   interface = "eno1"
+  # },
+]
+
+# Workers get their config from the default matchbox group via DHCP.
+# Add explicit MAC bindings only if you want per-worker groups.
+worker_nodes = []
+
+# Flip these during the staged rollout:
+bootstrap                = false
+apply_to_running_nodes   = false
+download_boot_assets     = true

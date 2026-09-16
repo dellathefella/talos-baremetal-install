@@ -1,0 +1,24 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+tfplan
+plan.txt
+terraform.tfvars
+
+# Generated boot/config artifacts
+terraform/build/
+
+# Talos / Kubernetes client credentials and cluster secrets
+kubeconfig
+talosconfig
+*.kubeconfig
+*.talosconfig
+secrets.yaml
+secrets*.yml
