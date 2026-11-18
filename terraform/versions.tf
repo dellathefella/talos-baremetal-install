@@ -16,7 +16,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 4.6.0"
+      version = "~> 4.7.0"
     }
     external = {
       source  = "hashicorp/external"
